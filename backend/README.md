@@ -34,7 +34,7 @@ Orbverflow/
 
 📁 Issues-1
 
-Commit 1 — skeleton + healthcheck
+✅ (已完成) Commit 1 — skeleton + healthcheck
 - 建 backend/ + FastAPI app
 - GET /healthz 回 {ok:true}
 
