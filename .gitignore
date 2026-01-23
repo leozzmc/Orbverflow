@@ -1,0 +1,30 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# ---- Virtual env ----
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+
+# ---- Tooling ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.DS_Store
+
+# ---- IDE ----
+.vscode/
+.idea/
+
+# ---- Logs ----
+*.log
+
+# ---- Secrets ----
+.env
