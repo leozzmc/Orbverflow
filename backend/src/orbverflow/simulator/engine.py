@@ -1,18 +1,19 @@
 import asyncio
 import random
+import time 
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from orbverflow.simulator.state import SatelliteState
-from orbverflow.simulator.scenarios import Scenario
-from orbverflow.models import TelemetryRecord, Provenance
+from orbverflow.models import TelemetryRecord, Provenance, Scenario  # ✅ 統一用 models.Scenario
 
 
 class SimulatorEngine:
     def __init__(self):
         self.satellites: Dict[str, SatelliteState] = {}
-        self.current_scenario = Scenario.NORMAL
-        self.scenario_end_time: float | None = None
+        self.current_scenario: Scenario = Scenario.NORMAL
+        self.scenario_end_time: Optional[float] = None
+        self._latest: Optional[List[TelemetryRecord]] = None  # ✅ 給 telemetry/latest 用
 
         self._init_sats()
 
@@ -30,10 +31,12 @@ class SimulatorEngine:
     def trigger_scenario(self, scenario: Scenario, duration_sec: int = 30):
         print(f"[Simulator] Scenario triggered: {scenario}")
         self.current_scenario = scenario
-        self.scenario_end_time = asyncio.get_event_loop().time() + duration_sec
+        self.scenario_end_time = time.monotonic() + duration_sec
+
+    def latest(self) -> Optional[List[TelemetryRecord]]:
+        return self._latest
 
     def _apply_scenario(self, sat: SatelliteState):
-        # reset
         sat.spoofing_flag = False
 
         if self.current_scenario == Scenario.NORMAL:
@@ -66,8 +69,7 @@ class SimulatorEngine:
     def _check_scenario_timeout(self):
         if self.scenario_end_time is None:
             return
-
-        if asyncio.get_event_loop().time() > self.scenario_end_time:
+        if time.monotonic() > self.scenario_end_time:
             print("[Simulator] Scenario ended, reverting to NORMAL")
             self.current_scenario = Scenario.NORMAL
             self.scenario_end_time = None
@@ -82,7 +84,7 @@ class SimulatorEngine:
             self._apply_scenario(sat)
 
             record = TelemetryRecord(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.utcnow().timestamp(), 
                 sat_id=sat.sat_id,
                 lat=sat.lat,
                 lon=sat.lon,
@@ -92,7 +94,7 @@ class SimulatorEngine:
                 packet_loss_pct=sat.packet_loss_pct,
                 modem_reset_count=sat.modem_reset_count,
                 link_state=sat.link_state,
-                spoofing_flag=sat.spoofing_flag,
+                spoofing=sat.spoofing_flag, 
                 provenance=Provenance(
                     source_vendor="SIM",
                     source_dataset_id="SIM_DEMO_2026_01",
@@ -106,17 +108,7 @@ class SimulatorEngine:
                     ],
                 ),
             )
-
             records.append(record)
 
+        self._latest = records 
         return records
-
-    async def run_console_demo(self):
-        while True:
-            batch = self.generate_batch()
-            print("=" * 60)
-            for r in batch:
-                print(
-                    f"{r.sat_id:4} | loss={r.packet_loss_pct:5.1f}% | snr={r.snr_db:5.1f} | {r.link_state} | spoof={r.spoofing_flag}"
-                )
-            await asyncio.sleep(1)

@@ -1,15 +1,24 @@
-from pydantic import BaseModel
-from typing import List, Dict, Any
-from datetime import datetime
+from enum import Enum
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
+
+
+class Scenario(str, Enum):
+    NORMAL = "NORMAL"
+    JAMMING = "JAMMING"
+    SATB_DOWN = "SATB_DOWN"
+    SPOOFING = "SPOOFING"
+
 
 class Provenance(BaseModel):
-    source_vendor: str
-    source_dataset_id: str
-    source_file: str
-    source_fields: List[str]
+    source_vendor: str = "SIM"
+    source_dataset_id: str = "SIM_DEMO"
+    source_file: str = "simulator"
+    source_fields: List[str] = Field(default_factory=list)
+
 
 class TelemetryRecord(BaseModel):
-    timestamp: datetime
+    timestamp: float
     sat_id: str
     lat: float
     lon: float
@@ -18,8 +27,16 @@ class TelemetryRecord(BaseModel):
     snr_db: float
     rssi_dbm: float
     packet_loss_pct: float
-    modem_reset_count: int
-    link_state: str
+    modem_reset_count: int = 0
+    power_watt: Optional[float] = None
 
-    spoofing_flag: bool = False
-    provenance: Provenance
+    link_state: str  # OK / DEGRADED / DOWN
+    spoofing: bool = False
+
+    provenance: Provenance = Field(default_factory=Provenance)
+
+
+class TelemetryBatch(BaseModel):
+    scenario: Scenario
+    tick: int
+    records: List[TelemetryRecord]
