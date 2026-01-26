@@ -15,6 +15,7 @@ class Provenance(BaseModel):
     source_dataset_id: str = "SIM_DEMO"
     source_file: str = "simulator"
     source_fields: List[str] = Field(default_factory=list)
+    mapping_version: Optional[str] = None
 
 
 class TelemetryRecord(BaseModel):
