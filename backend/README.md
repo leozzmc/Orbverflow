@@ -198,7 +198,7 @@ curl http://127.0.0.1:8000/state/latest | jq .
 }}
 ```
 
-## Airbus Data Pack Ingestion
+
 
 # Airbus Data Pack Ingestion
 
@@ -402,5 +402,232 @@ backend/
 * Schema-mapped telemetry normalization
 * Provenance-aware analytics
 * Control-plane survivability under heterogeneous data sources
+
+
+# Cluster suggestion + consistency verification engine
+
+This module implements the baseline fleet-level clustering and anomaly consistency verification logic for Orbverflow.
+It provides deterministic, explainable, and demo-friendly grouping of affected satellites during interference or degradation events (e.g. jamming).
+
+---
+
+## Architecture
+
+**Location**
+
+```
+backend/src/orbverflow/engines/cluster_engine.py
+backend/src/orbverflow/cluster_models.py
+backend/src/orbverflow/routes/clusters.py
+```
+
+**Data flow**
+
+```
+TelemetryStateStore (latest states)
+        |
+        v
+ClusterEngine
+  ├─ intensity scoring (packet loss + SNR drop)
+  ├─ per-satellite consistency classification
+  ├─ geo-distance clustering (Haversine)
+  ├─ cluster summary & explainability
+  v
+REST API: /clusters/suggest
+```
+
+**Core components**
+
+* `ClusterEngine`
+
+  * Rule-based anomaly intensity scoring
+  * Distance-based clustering (<= 1500 km)
+  * Connected-components grouping
+  * Explainable cluster metadata generation
+
+* `ConsistencyResult`
+
+  * Per-satellite classification:
+
+    * `ok`
+    * `suspicious`
+    * `confirmed`
+    * `high_confidence`
+
+* `ClusterSuggestion / ClusterOut`
+
+  * Cluster members
+  * Geographical center & radius
+  * Summary statistics
+  * Trigger analysis
+
+---
+
+## Purpose & Design Goals
+
+* Detect groups of satellites likely affected by the **same physical interference source**
+* Provide **deterministic & explainable** output for:
+
+  * operators
+  * judges
+  * debugging
+  * downstream engines (jamming detection, triangulation)
+* Avoid black-box ML for hackathon reliability
+* Support human-in-the-loop decision making
+
+Key design features:
+
+* Only clusters with **≥ 2 satellites** are returned
+* Each cluster includes:
+
+  * aggregated severity statistics
+  * explicit trigger explanation
+  * applied thresholds
+
+---
+
+## Consistency classification logic
+
+Each satellite receives an **anomaly intensity score (0.0–1.0)**:
+
+```
+intensity = 0.7 * normalized(packet_loss_pct)
+          + 0.3 * normalized(snr_drop)
+```
+
+Levels:
+
+| Level           | Condition |
+| --------------- | --------- |
+| ok              | < 0.35    |
+| suspicious      | ≥ 0.35    |
+| confirmed       | ≥ 0.55    |
+| high_confidence | ≥ 0.75    |
+
+---
+
+## Clustering logic (baseline)
+
+1. Select satellites where:
+
+   ```
+   intensity >= cluster_intensity_threshold (default 0.55)
+   ```
+2. Build graph edges if:
+
+   ```
+   distance <= distance_km_max (default 1500 km)
+   ```
+3. Compute connected components (BFS)
+4. Filter clusters with size < 2
+5. Compute cluster metadata:
+
+   * center (mean lat/lon)
+   * radius (max distance)
+   * average / max score
+   * level breakdown
+   * trigger inference
+
+---
+
+## REST API
+
+### Endpoint
+
+```
+GET /clusters/suggest
+```
+
+### Response (simplified)
+
+```json
+{
+  "ok": true,
+  "engine": "baseline_rule_v1",
+  "thresholds": {
+    "distance_km": 1500,
+    "intensity": 0.55,
+    "snr_low": 12,
+    "loss_high": 50
+  },
+  "clusters": [
+    {
+      "cluster_id": "CL-001",
+      "members": ["SatA", "SatB", "SatC"],
+      "center": { "lat": 23.9, "lon": 122.0 },
+      "radius_km": 75.4,
+      "reason": "... triggered_by=['packet_loss','snr_drop']",
+      "summary": {
+        "avg_score": 0.76,
+        "max_score": 0.83,
+        "levels_breakdown": {
+          "ok": 0,
+          "suspicious": 0,
+          "confirmed": 1,
+          "high_confidence": 2
+        }
+      },
+      "triggered_by": ["packet_loss", "snr_drop"],
+      "consistency": { "...": "..." }
+    }
+  ],
+  "per_sat": { "...": "..." }
+}
+```
+
+---
+
+## Threshold transparency
+
+Returned in every response for demo/debug visibility:
+
+* `distance_km`
+* `intensity`
+* `snr_low`
+* `loss_high`
+
+This makes cluster behavior explainable and tunable during demos.
+
+---
+
+## Testing
+
+### Baseline (no incident)
+
+```bash
+curl http://127.0.0.1:8000/clusters/suggest | jq .
+```
+
+Expected:
+
+* `clusters: []`
+* all satellites = `ok`
+
+### Trigger jamming scenario
+
+```bash
+curl -X POST http://127.0.0.1:8000/scenario/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"scenario":"JAMMING","duration_sec":10}'
+
+curl http://127.0.0.1:8000/clusters/suggest | jq .
+```
+
+Expected:
+
+* cluster returned with ≥ 2 satellites
+* elevated consistency levels
+* populated `summary`, `triggered_by`, `thresholds`
+
+---
+
+## Integration with future engines
+
+The output of this module is designed to feed:
+
+* Jamming detection engine (Issue-5)
+* Triangulation engine
+* Playbook engine
+* Mission continuity orchestration
 
 
