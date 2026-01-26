@@ -84,7 +84,7 @@ class SimulatorEngine:
             self._apply_scenario(sat)
 
             record = TelemetryRecord(
-                timestamp=datetime.utcnow().timestamp(), 
+                timestamp=time.time(), 
                 sat_id=sat.sat_id,
                 lat=sat.lat,
                 lon=sat.lon,
