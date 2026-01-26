@@ -1,0 +1,12 @@
+{
+  "satelliteId": "sat_id",
+  "timestamp": "timestamp",
+  "lat": "lat",
+  "lon": "lon",
+  "alt": "alt",
+  "snr": "snr_db",
+  "rssi": "rssi_dbm",
+  "loss": "packet_loss_pct",
+  "modemReset": "modem_reset_count",
+  "linkState": "link_state"
+}
