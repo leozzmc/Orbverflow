@@ -11,6 +11,7 @@ from orbverflow.routes.ingest import router as ingest_router
 from orbverflow.routes.state import router as state_router
 from orbverflow.routes.meta import router as meta_router
 from orbverflow.routes.airbus import router as airbus_router
+from orbverflow.routes.clusters import router as clusters_router
 
 
 app = FastAPI(title="Orbverflow Backend")
@@ -22,6 +23,7 @@ app.include_router(ingest_router)
 app.include_router(state_router)
 app.include_router(meta_router)
 app.include_router(airbus_router)
+app.include_router(clusters_router)
 
 
 async def simulator_loop():
