@@ -12,6 +12,7 @@ from orbverflow.routes.state import router as state_router
 from orbverflow.routes.meta import router as meta_router
 from orbverflow.routes.airbus import router as airbus_router
 from orbverflow.routes.clusters import router as clusters_router
+from orbverflow.routes.incidents import router as incidents_router
 
 
 app = FastAPI(title="Orbverflow Backend")
@@ -24,6 +25,7 @@ app.include_router(state_router)
 app.include_router(meta_router)
 app.include_router(airbus_router)
 app.include_router(clusters_router)
+app.include_router(incidents_router)
 
 
 async def simulator_loop():
@@ -32,7 +34,6 @@ async def simulator_loop():
         tick += 1
         records = engine.generate_batch()
 
-        # For issue-2: store it
         await store.add_records(records)
 
         payload = TelemetryBatch(
