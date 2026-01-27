@@ -127,4 +127,4 @@ class JammingEngine:
             now_ts=now,
         )
 
-        return incident, "jamming incident %s" % action
+        return incident, "%s" % action
