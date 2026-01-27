@@ -631,3 +631,136 @@ The output of this module is designed to feed:
 * Mission continuity orchestration
 
 
+
+# Jamming Incident Detection & Triangulation Engine (Issue #5)
+
+This module implements real-time detection and localization of satellite jamming events based on multi-satellite telemetry correlation.
+
+It extends the cluster suggestion system by converting spatially-consistent anomalies into structured **incidents** with estimated location, impact radius, and confidence score.
+
+---
+
+## ✨ Features
+
+### Detection
+- Multi-satellite anomaly correlation
+- Combined signal analysis:
+  - Packet loss percentage
+  - SNR degradation
+- Cluster-based aggregation to reduce false positives
+
+### Triangulation
+- Estimates:
+  - Incident center (`lat`, `lon`)
+  - Impact radius (`radius_km`)
+  - Confidence score (`0.0 ~ 1.0`)
+- Uses anomaly intensity and spatial consistency
+
+### Incident Lifecycle
+- Cooldown window to prevent duplicate incidents
+- Update existing incident during cooldown
+- Create new incident when cooldown expires
+- Geo-binned correlation signature to distinguish multiple jamming sources
+
+### Provenance Tracking
+Each incident records:
+- Detection engine name
+- Triggered signals (`packet_loss`, `snr_drop`)
+- Threshold configuration used for detection
+
+## 🧩 Architecture Components
+
+| Component | Description |
+|-----------|-------------|
+| `JammingEngine` | Performs detection, scoring, clustering, and triangulation |
+| `IncidentStore` | Manages incident lifecycle, cooldown window, and deduplication |
+| `ClusterEngine` | Provides anomaly clusters as input signal |
+| `TelemetryStateStore` | Supplies latest telemetry per satellite |
+| `SimulatorEngine` | Generates jamming scenarios for testing |
+| REST API | Exposes incident data to frontend or evaluation tools |
+
+
+## 🔌 API Changes
+
+### Endpoint: `GET /incidents/latest`
+
+Returns the latest detected or updated jamming incident.
+
+#### Response Example
+
+```json
+{
+  "ok": true,
+  "has_incident": true,
+  "incident": {
+    "incident_id": "INC-009",
+    "type": "JAMMING",
+    "affected_sats": ["SatC", "SatE"],
+    "location": {
+      "lat": 26.11,
+      "lon": 131.95
+    },
+    "radius_km": 37.33,
+    "confidence": 0.6761,
+    "engine_type": "baseline_rule_v1",
+    "timestamp": 1769493367.26,
+    "provenance": {
+      "engine": "baseline_rule_v1",
+      "triggered_by": ["packet_loss", "snr_drop"],
+      "thresholds": {
+        "distance_km": 1500,
+        "intensity": 0.55,
+        "snr_low": 12,
+        "loss_high": 50
+      }
+    }
+  },
+  "reason": "jamming incident created"
+}
+```
+
+
+#### Notes
+
+* During cooldown window, repeated calls will update the same incident ID
+* After cooldown expires, a new incident ID is generated
+
+## 🧪 Testing Guide
+
+### 1. Start backend server
+
+```bash
+PYTHONPATH=src uvicorn orbverflow.main:app --reload
+```
+
+### 2. Trigger jamming scenario
+
+```bash
+curl -X POST http://127.0.0.1:8000/scenario/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"scenario":"JAMMING","duration_sec":15}'
+```
+
+### 3. Query latest incident
+
+```bash
+curl http://127.0.0.1:8000/incidents/latest | jq .
+```
+
+### 4. Verify behavior
+
+* First call → `"reason": "jamming incident created"`
+* Subsequent calls within cooldown → `"reason": "jamming incident updated"`
+* After cooldown expires → new `incident_id`
+
+## 🚀 Future Improvements
+
+* Track multiple concurrent jamming sources explicitly
+* Historical incident timeline API
+* Kalman-filter based triangulation
+* Confidence calibration using real RF propagation models
+* Correlate with ground station telemetry
+
+This module provides a foundation for transforming low-level telemetry anomalies into explainable, geolocated security incidents suitable for monitoring dashboards, automated alerting, and space situational awareness systems.
+
+---
