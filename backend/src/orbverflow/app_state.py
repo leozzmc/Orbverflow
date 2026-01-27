@@ -5,6 +5,8 @@ from orbverflow.provenance_registry import ProvenanceRegistry
 from orbverflow.engines.cluster_engine import ClusterEngine, ClusterConfig
 from orbverflow.incident_store import IncidentStore, IncidentStoreConfig
 from orbverflow.engines.jamming_engine import JammingEngine, JammingEngineConfig
+from orbverflow.playbook_store import PlaybookStore
+from orbverflow.engines.playbook_engine import PlaybookEngine
 
 hub = WebSocketHub()
 engine = SimulatorEngine()
@@ -24,18 +26,6 @@ cluster_engine = ClusterEngine(
 )
 
 
-# incident_store = IncidentStore()
-# jamming_engine = JammingDetectionEngine(
-#     JammingConfig(
-#         distance_km=1500.0,
-#         intensity_threshold=0.55,
-#         snr_low=12.0,
-#         loss_high=50.0,
-#         min_members=2,
-#         min_confidence_to_emit=0.55,
-#     )
-# )
-
 incident_store = IncidentStore(IncidentStoreConfig(cooldown_sec=10.0))
 jamming_engine = JammingEngine(
     cluster_engine=cluster_engine,
@@ -43,3 +33,6 @@ jamming_engine = JammingEngine(
     prov_registry=prov_registry,
     cfg=JammingEngineConfig(min_affected_sats=2),
 )
+
+playbook_store = PlaybookStore()
+playbook_engine = PlaybookEngine(playbook_store)
