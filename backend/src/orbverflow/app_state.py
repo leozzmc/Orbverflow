@@ -7,6 +7,9 @@ from orbverflow.incident_store import IncidentStore, IncidentStoreConfig
 from orbverflow.engines.jamming_engine import JammingEngine, JammingEngineConfig
 from orbverflow.playbook_store import PlaybookStore
 from orbverflow.engines.playbook_engine import PlaybookEngine
+from orbverflow.engines.mission_continuity_engine import MissionContinuityOrchestrator
+from orbverflow.mission_continuity_store import MissionContinuityStore
+
 
 hub = WebSocketHub()
 engine = SimulatorEngine()
@@ -36,3 +39,6 @@ jamming_engine = JammingEngine(
 
 playbook_store = PlaybookStore()
 playbook_engine = PlaybookEngine(playbook_store)
+
+mission_orchestrator = MissionContinuityOrchestrator(cooldown_sec=10)
+mission_continuity_store = MissionContinuityStore()
