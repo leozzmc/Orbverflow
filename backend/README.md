@@ -915,3 +915,150 @@ curl http://127.0.0.1:8000/incidents/latest | jq .
 
 ---
 
+# Mission Continuity Orchestrator
+
+The Mission Continuity Orchestrator provides **human-approved mission recovery recommendations** when a satellite becomes unavailable due to link failure or cyber incidents.
+
+It is designed as a **control-plane intelligence component** and does NOT execute any satellite commands.
+
+---
+
+## Purpose
+
+- Preserve mission availability during satellite or link failure
+- Provide auditable and explainable recovery suggestions
+- Maintain strict separation between:
+  - Decision support (Orbverflow)
+  - Execution authority (MCS / operators)
+
+---
+
+## Trigger Conditions
+
+Currently implemented:
+
+- Satellite ID: `SatB`
+- Condition: `link_state == "DOWN"`
+- Cooldown: 10 seconds (per satellite)
+
+Trigger sources:
+
+- Telemetry ingestion API (`/ingest/telemetry`)
+- Simulator loop (real-time demo mode)
+
+---
+
+## Architecture
+
+Components:
+
+| Component | Description |
+|-----------|-------------|
+| `mission_store.py` | In-memory mission summary registry |
+| `mission_continuity_engine.py` | Rule-based orchestrator |
+| `mission_continuity_models.py` | Switch plan data models |
+| `routes/ingest.py` | Telemetry hook integration |
+| `routes/mission.py` | REST API exposure |
+
+---
+
+## Mission Summary Model (Demo)
+
+Currently derived from telemetry as a stub:
+
+```json
+{
+  "sat_id": "SatA",
+  "mission_mode": "IMAGING",
+  "queue_depth": 10,
+  "cmd_seq_hash": "demo-hash",
+  "time_window": ["+5min", "+20min"],
+  "capability_tags": ["relay"]
+}
+```
+
+Future versions will support:
+
+- Cryptographic signature
+- Anti-replay fields
+- Dataset provenance
+- Access control
+
+---
+
+## Switch Plan Model
+
+```json
+{
+  "failed_sat": "SatB",
+  "candidates": ["SatA", "SatC"],
+  "window": ["+5min", "+20min"],
+  "reason": "Primary satellite link down. Recommend task reassignment.",
+  "created_at": 1769521680.91
+}
+```
+Wrapped as:
+
+```json
+{
+  "type": "mission_continuity_proposed",
+  "plan": { ... }
+}
+```
+
+## REST API
+
+Get Latest Recommendation
+
+```
+GET /mission/continuity/latest
+```
+Response:
+```json
+{
+  "ok": true,
+  "has_plan": true,
+  "recommendation": {
+    "type": "mission_continuity_proposed",
+    "plan": { ... }
+  }
+}
+```
+
+### Demo Flow
+
+1. Trigger scenario:
+
+```
+POST /scenario/trigger
+{
+  "scenario": "SATB_DOWN"
+}
+```
+
+2. System detects SatB link down
+3. Orchestrator selects replacement candidates
+4. Switch plan generated
+5. Operator UI fetches recommendation
+
+---
+
+## Design Principles
+
+- Deterministic logic
+- Human-in-the-loop
+- No command execution
+- Vendor-agnostic
+- Airbus-compatible safety posture
+- Explainable decision path
+
+## Limitations (Hackathon Edition)
+
+- In-memory storage only
+- Capability tags are stubbed
+- No cryptographic validation
+- No real orbital constraint solving
+
+These are intentionally deferred to keep the demo deterministic and explainable.
+
+---

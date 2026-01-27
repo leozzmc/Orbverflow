@@ -1,20 +1,23 @@
 import asyncio, os
 from fastapi import FastAPI
 from dotenv import load_dotenv
+
 load_dotenv()
+
 from orbverflow.app_state import hub, engine, store
 from orbverflow.models import TelemetryBatch
+
 from orbverflow.routes.health import router as health_router
 from orbverflow.routes.telemetry import router as telemetry_router
 from orbverflow.routes.scenario import router as scenario_router
-from orbverflow.routes.ingest import router as ingest_router
+from orbverflow.routes.ingest import router as ingest_router, _maybe_trigger_mission_continuity
 from orbverflow.routes.state import router as state_router
 from orbverflow.routes.meta import router as meta_router
 from orbverflow.routes.airbus import router as airbus_router
 from orbverflow.routes.clusters import router as clusters_router
 from orbverflow.routes.incidents import router as incidents_router
-from orbverflow.routes.playbooks import router as playbooks_router 
-
+from orbverflow.routes.playbooks import router as playbooks_router
+from orbverflow.routes.mission import router as mission_router
 
 app = FastAPI(title="Orbverflow Backend")
 
@@ -28,6 +31,7 @@ app.include_router(airbus_router)
 app.include_router(clusters_router)
 app.include_router(incidents_router)
 app.include_router(playbooks_router)
+app.include_router(mission_router)
 
 
 async def simulator_loop():
@@ -38,6 +42,9 @@ async def simulator_loop():
 
         await store.add_records(records)
 
+        # ✅ Issue-7: also run mission continuity hook when simulator generates telemetry
+        await _maybe_trigger_mission_continuity(records)
+
         payload = TelemetryBatch(
             scenario=engine.current_scenario,
             tick=tick,
@@ -46,7 +53,6 @@ async def simulator_loop():
 
         await hub.broadcast_json(payload)
         await asyncio.sleep(1)
-
 
 
 @app.on_event("startup")
