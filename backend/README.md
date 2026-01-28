@@ -1062,3 +1062,66 @@ POST /scenario/trigger
 These are intentionally deferred to keep the demo deterministic and explainable.
 
 ---
+
+# Demo Dashboard Backend (Issue-8)
+
+This backend implements a WebSocket-first real-time incident response pipeline to support the Orbverflow demo dashboard.
+
+It enables end-to-end scenario simulation from telemetry ingestion to operational decision support.
+
+---
+
+## Core Capabilities
+
+### 1. Real-time Fleet Snapshot (WebSocket)
+- Event: `fleet_snapshot` (1Hz)
+- Payload: latest satellite status only
+  - `sat_id`, `link_state`, `snr_db`, `packet_loss_pct`, `position`, `source_vendor`
+- Used by frontend Fleet Overview page.
+
+### 2. Incident Detection Engine (Jamming / Link Down)
+- Detects incidents from rolling telemetry window
+- Supports:
+  - Jamming triangulation (geo-bin + cooldown)
+  - Satellite link down
+- REST fallback:
+  - `GET /incidents/latest`
+- WebSocket event:
+  - `incident_created`
+
+### 3. Automated Playbook Proposal
+- Generates operational playbooks when an incident is created
+- Example:
+  - Availability Degrade (Jamming)
+  - Mission Continuity / Task Reassignment
+- REST:
+  - `POST /playbooks/{id}/approve`
+- WebSocket events:
+  - `playbook_proposed`
+  - `playbook_approved`
+
+### 4. Mission Continuity Orchestrator (Issue-7 integration)
+- Generates task reassignment recommendations when primary satellite fails
+- REST:
+  - `GET /mission/continuity/latest`
+- WebSocket:
+  - `mission_continuity_proposed`
+
+### 5. Audit Log & Provenance
+- Hash-chained audit events for:
+  - Incident created
+  - Playbook approved
+  - Mission continuity proposed
+- REST:
+  - `GET /audit/latest?limit=50`
+- WebSocket:
+  - `audit_log`
+
+### 6. Telemetry Sources
+
+Supports two modes:
+
+#### Simulator Mode (default)
+- Controlled by `.env`:
+  ```env
+  DISABLE_SIM=0
