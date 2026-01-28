@@ -128,60 +128,6 @@ class IncidentStore:
             now_ts=now_ts,
         )
 
-    # # --- Actual implementation (geo-bin signature + cooldown) ---
-    # def upsert_jamming_incident(
-    #     self,
-    #     affected_sats: List[str],
-    #     lat: float,
-    #     lon: float,
-    #     radius_km: float,
-    #     confidence: float,
-    #     engine_type: str,
-    #     provenance: Optional[Dict[str, Any]] = None,
-    #     now_ts: Optional[float] = None,
-    # ) -> Tuple[Incident, str]:
-    #     now = float(now_ts if now_ts is not None else time.time())
-    #     sig = self._signature("JAMMING", float(lat), float(lon))
-
-    #     within_cooldown = (now - float(self._last_emit_ts)) < float(self.cfg.cooldown_sec)
-    #     same_sig = (self._latest_sig is not None and sig == self._latest_sig)
-
-    #     prov: Dict[str, Any] = dict(provenance or {})
-    #     prov.setdefault("engine", engine_type)
-    #     prov.setdefault("correlation", {})
-    #     prov["correlation"]["signature"] = sig
-    #     prov["correlation"]["geo_bin_deg"] = float(self.cfg.geo_bin_deg)
-    #     prov["correlation"]["cooldown_sec"] = float(self.cfg.cooldown_sec)
-
-    #     if self._latest is not None and within_cooldown and same_sig:
-    #         # update existing incident (keep same ID)
-    #         self._latest.affected_sats = list(affected_sats)
-    #         self._latest.location = IncidentLocation(lat=float(lat), lon=float(lon))
-    #         self._latest.radius_km = float(radius_km)
-    #         self._latest.confidence = float(confidence)
-    #         self._latest.engine_type = str(engine_type)
-    #         self._latest.timestamp = now
-    #         self._latest.provenance = prov
-
-    #         self._last_emit_ts = now
-    #         return self._latest, "jamming incident updated"
-
-    #     # create new incident
-    #     inc = Incident(
-    #         incident_id=self._make_id(),
-    #         type="JAMMING",
-    #         affected_sats=list(affected_sats),
-    #         location=IncidentLocation(lat=float(lat), lon=float(lon)),
-    #         radius_km=float(radius_km),
-    #         confidence=float(confidence),
-    #         engine_type=str(engine_type),
-    #         timestamp=now,
-    #         provenance=prov,
-    #     )
-    #     self._latest = inc
-    #     self._latest_sig = sig
-    #     self._last_emit_ts = now
-    #     return inc, "jamming incident created"
     def upsert_jamming_incident(
         self,
         affected_sats: List[str],

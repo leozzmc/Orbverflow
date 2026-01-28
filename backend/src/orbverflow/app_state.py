@@ -10,6 +10,7 @@ from orbverflow.engines.playbook_engine import PlaybookEngine
 from orbverflow.engines.mission_continuity_engine import MissionContinuityOrchestrator
 from orbverflow.mission_continuity_store import MissionContinuityStore
 from orbverflow.audit_store import AuditStore 
+from orbverflow.scenario_state import scenario_state
 
 
 hub = WebSocketHub()
