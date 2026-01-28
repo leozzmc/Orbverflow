@@ -1125,3 +1125,61 @@ Supports two modes:
 - Controlled by `.env`:
   ```env
   DISABLE_SIM=0
+  ```
+
+* Scenario trigger:
+
+  * `POST /scenario/trigger`
+* Used for demo & testing.
+
+##### Airbus Telemetry Ingestion
+
+* Endpoint:
+
+  ```http
+  POST /airbus/load
+  ```
+* Supports mapping configuration & dataset provenance
+* Works with scenario triggers and detection engines.
+
+---
+
+### Architecture Summary
+
+* WebSocket is the primary data channel for UI updates.
+* REST APIs act as:
+
+  * Initial bootstrap
+  * Fallback
+  * Debugging interface
+* Event-driven pipeline:
+
+```
+Telemetry → Detection Engine → Incident → Playbooks → Mission Continuity → Audit Log → UI
+```
+
+---
+
+### Demo Flow
+
+1. Load telemetry (simulator or Airbus pack)
+2. Trigger scenario (`JAMMING` / `SATB_DOWN`)
+3. Fleet status degrades in real-time
+4. Incident generated
+5. Playbooks proposed
+6. Operator approves playbooks
+7. Mission continuity recommendation generated
+8. Audit log records all actions
+
+---
+
+### Notes
+
+* Jamming detection includes cooldown to avoid duplicate incident/playbook spam.
+* Fleet snapshot is intentionally lightweight (no raw telemetry streaming).
+* Designed for demo usage and UI-driven exploration.
+
+---
+
+
+
