@@ -1,18 +1,10 @@
-import asyncio
-import websockets
-import json
+import asyncio, json, websockets
 
 async def main():
-    uri = "ws://127.0.0.1:8000/ws/telemetry"
-    async with websockets.connect(uri) as ws:
-        print("Connected to telemetry stream")
+    async with websockets.connect("ws://127.0.0.1:8000/ws") as ws:
+        print("connected")
         while True:
-            msg = await ws.recv()
-            data = json.loads(msg)
-            print(f"[tick={data['tick']}] scenario={data['scenario']}")
-            for r in data["records"]:
-                print(f"  {r['sat_id']} loss={r['packet_loss_pct']:.1f}% snr={r['snr_db']:.1f} {r['link_state']}")
-            print("-" * 40)
+            data = json.loads(await ws.recv())
+            print("type=", data.get("type"), "keys=", list(data.keys()))
 
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())

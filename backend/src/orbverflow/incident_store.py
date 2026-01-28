@@ -128,7 +128,6 @@ class IncidentStore:
             now_ts=now_ts,
         )
 
-    # --- Actual implementation (geo-bin signature + cooldown) ---
     def upsert_jamming_incident(
         self,
         affected_sats: List[str],
@@ -144,7 +143,6 @@ class IncidentStore:
         sig = self._signature("JAMMING", float(lat), float(lon))
 
         within_cooldown = (now - float(self._last_emit_ts)) < float(self.cfg.cooldown_sec)
-        same_sig = (self._latest_sig is not None and sig == self._latest_sig)
 
         prov: Dict[str, Any] = dict(provenance or {})
         prov.setdefault("engine", engine_type)
@@ -153,8 +151,10 @@ class IncidentStore:
         prov["correlation"]["geo_bin_deg"] = float(self.cfg.geo_bin_deg)
         prov["correlation"]["cooldown_sec"] = float(self.cfg.cooldown_sec)
 
-        if self._latest is not None and within_cooldown and same_sig:
-            # update existing incident (keep same ID)
+        # ✅ KEY CHANGE:
+        # If we already have an incident and we are still in cooldown window,
+        # ALWAYS update the same incident_id, even if signature (geo bin) changes a bit.
+        if self._latest is not None and within_cooldown:
             self._latest.affected_sats = list(affected_sats)
             self._latest.location = IncidentLocation(lat=float(lat), lon=float(lon))
             self._latest.radius_km = float(radius_km)
@@ -163,10 +163,12 @@ class IncidentStore:
             self._latest.timestamp = now
             self._latest.provenance = prov
 
+            # keep tracking the newest signature for debugging/correlation
+            self._latest_sig = sig
             self._last_emit_ts = now
             return self._latest, "jamming incident updated"
 
-        # create new incident
+        # create new incident (either first time, or cooldown expired)
         inc = Incident(
             incident_id=self._make_id(),
             type="JAMMING",
@@ -182,6 +184,7 @@ class IncidentStore:
         self._latest_sig = sig
         self._last_emit_ts = now
         return inc, "jamming incident created"
+
 
     def to_latest_response(self, reason: str = "") -> LatestIncidentResponse:
         return LatestIncidentResponse(

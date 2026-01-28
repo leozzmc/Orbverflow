@@ -13,20 +13,40 @@ class PlaybookEngine:
         self.counter += 1
         return f"PB-{self.counter:02d}"
 
-    def propose_for_incident(self, incident) -> List[Playbook]:
-        playbooks = []
+    # def propose_for_incident(self, incident) -> List[Playbook]:
+    #     playbooks = []
 
-        # Playbook-04: Availability Degrade
-        pb1 = self._build_availability_degrade(incident)
-        playbooks.append(pb1)
-        self.store.add(pb1)
+    #     # Playbook-04: Availability Degrade
+    #     pb1 = self._build_availability_degrade(incident)
+    #     playbooks.append(pb1)
+    #     self.store.add(pb1)
 
-        # Playbook-07: Mission Continuity
-        pb2 = self._build_mission_continuity(incident)
-        playbooks.append(pb2)
-        self.store.add(pb2)
+    #     # Playbook-07: Mission Continuity
+    #     pb2 = self._build_mission_continuity(incident)
+    #     playbooks.append(pb2)
+    #     self.store.add(pb2)
 
-        return playbooks
+    #     return playbooks
+    def propose_for_incident(self, incident):
+        """
+        Return proposed playbooks for an incident.
+
+        IMPORTANT:
+        - Deduplicate: if we already created playbooks for this incident_id,
+        return existing instead of generating again (simulator_loop calls this every tick).
+        """
+        existing = self.store.list_for_incident(incident.incident_id)
+        if existing:
+            return existing
+
+        # Otherwise create exactly one pair for this incident
+        p1 = self._build_availability_degrade(incident)
+        p2 = self._build_mission_continuity(incident)
+
+        self.store.add(p1)
+        self.store.add(p2)
+        return [p1, p2]
+
 
     def approve(self, playbook_id: str) -> Playbook:
         pb = self.store.get(playbook_id)
@@ -92,3 +112,6 @@ class PlaybookEngine:
             state="PROPOSED",
             created_at=time.time()
         )
+        
+    def list_by_incident(self, incident_id: str) -> List[Playbook]:
+        return [p for p in self._store.values() if getattr(p, "incident_id", None) == incident_id]
