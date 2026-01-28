@@ -1,5 +1,9 @@
-import asyncio, os
+
+import asyncio
+import os
+import time
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,11 +19,24 @@ from orbverflow.routes.state import router as state_router
 from orbverflow.routes.meta import router as meta_router
 from orbverflow.routes.airbus import router as airbus_router
 from orbverflow.routes.clusters import router as clusters_router
-from orbverflow.routes.incidents import router as incidents_router
+from orbverflow.routes.incidents import router as incidents_router, maybe_emit_jamming_events
 from orbverflow.routes.playbooks import router as playbooks_router
 from orbverflow.routes.mission import router as mission_router
+from orbverflow.routes.audit import router as audit_router
+from orbverflow.routes.ws_main import router as ws_router
 
 app = FastAPI(title="Orbverflow Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health_router)
 app.include_router(telemetry_router)
@@ -32,27 +49,67 @@ app.include_router(clusters_router)
 app.include_router(incidents_router)
 app.include_router(playbooks_router)
 app.include_router(mission_router)
+app.include_router(audit_router)
+app.include_router(ws_router)
+
+
+def _to_fleet_snapshot(records):
+    sats = []
+    for r in records:
+        sats.append(
+            {
+                "sat_id": r.sat_id,
+                "link_state": r.link_state,
+                "snr_db": r.snr_db,
+                "packet_loss_pct": r.packet_loss_pct,
+                "position": {"lat": r.lat, "lon": r.lon},
+                "source_vendor": getattr(r.provenance, "source_vendor", "SIM"),
+            }
+        )
+    return {
+        "type": "fleet_snapshot",
+        "timestamp": time.time(),
+        "satellites": sats,
+    }
 
 
 async def simulator_loop():
     tick = 0
+    await asyncio.sleep(0.2)
+
     while True:
         tick += 1
+
+        # IMPORTANT: your SimulatorEngine.generate_batch() returns List[TelemetryRecord]
         records = engine.generate_batch()
 
+        # store rolling telemetry window
         await store.add_records(records)
 
-        # ✅ Issue-7: also run mission continuity hook when simulator generates telemetry
+        # Issue-7 mission continuity hook (writes store + WS inside that module)
         await _maybe_trigger_mission_continuity(records)
 
+        # WS-first: emit incident/playbook/audit (instead of relying on REST polling)
+        # Demo hooks should never kill the simulator loop.
+        try:
+            latest_snapshot = await store.latest_all()
+            await maybe_emit_jamming_events(latest_snapshot, now_ts=time.time())
+        except Exception as e:
+            print(f"[simulator] maybe_emit_jamming_events failed: {e}")
+
+        # WS: telemetry batch
         payload = TelemetryBatch(
             scenario=engine.current_scenario,
             tick=tick,
             records=records,
         ).model_dump()
 
-        await hub.broadcast_json(payload)
-        await asyncio.sleep(1)
+        await hub.broadcast_json({"type": "telemetry_batch", **payload})
+
+        # WS: fleet snapshot (uses records => will reflect JAMMING degraded immediately)
+        await hub.broadcast_json(_to_fleet_snapshot(records))
+
+        await asyncio.sleep(1.0)
 
 
 @app.on_event("startup")
@@ -61,3 +118,8 @@ async def on_startup():
         asyncio.create_task(simulator_loop())
     else:
         print("[startup] simulator disabled by env")
+
+
+@app.get("/")
+def root():
+    return {"ok": True, "service": "orbverflow-backend", "time": time.time()}

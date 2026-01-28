@@ -9,6 +9,7 @@ from orbverflow.playbook_store import PlaybookStore
 from orbverflow.engines.playbook_engine import PlaybookEngine
 from orbverflow.engines.mission_continuity_engine import MissionContinuityOrchestrator
 from orbverflow.mission_continuity_store import MissionContinuityStore
+from orbverflow.audit_store import AuditStore 
 
 
 hub = WebSocketHub()
@@ -42,3 +43,5 @@ playbook_engine = PlaybookEngine(playbook_store)
 
 mission_orchestrator = MissionContinuityOrchestrator(cooldown_sec=10)
 mission_continuity_store = MissionContinuityStore()
+
+audit_store = AuditStore(maxlen=200)
