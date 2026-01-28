@@ -15,9 +15,10 @@ export default function FleetPage() {
   return (
     <div>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Badge label="Dataset" value={dataset?.source_dataset_id ?? "unknown"} />
-        <Badge label="Vendor" value={dataset?.source_vendor ?? "unknown"} />
-        <Badge label="Mapping" value={dataset?.mapping_version ?? "unknown"} />
+        <Badge label="Dataset" value={dataset?.source_dataset_id ?? dataset?.dataset?.source_dataset_id ?? "unknown"} />
+        <Badge label="Vendor" value={dataset?.source_vendor ?? dataset?.dataset?.source_vendor ?? "unknown"} />
+        <Badge label="Mapping" value={dataset?.mapping_version ?? dataset?.dataset?.mapping_version ?? "unknown"} />
+
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <button disabled={busy} onClick={() => run("JAMMING")}>Trigger JAMMING</button>
           <button disabled={busy} onClick={() => run("SATB_DOWN")}>Trigger SATB_DOWN</button>
