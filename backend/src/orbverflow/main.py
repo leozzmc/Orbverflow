@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from orbverflow.app_state import hub, engine, store
+from orbverflow.app_state import hub, engine, store, prov_registry
 from orbverflow.models import TelemetryBatch
 
 from orbverflow.routes.health import router as health_router
@@ -23,8 +23,11 @@ from orbverflow.routes.playbooks import router as playbooks_router
 from orbverflow.routes.mission import router as mission_router
 from orbverflow.routes.audit import router as audit_router
 from orbverflow.routes.ws_main import router as ws_router
+
 from orbverflow.scenario_state import scenario_state
 from orbverflow.scenario_overlay import apply_overlay
+
+from orbverflow.provenance_registry import DEFAULT_SIM_META 
 
 app = FastAPI(title="Orbverflow Backend")
 
@@ -140,16 +143,14 @@ async def simulator_loop():
 
         await asyncio.sleep(1.0)
 
-
 @app.on_event("startup")
 async def on_startup():
     if os.getenv("DISABLE_SIM", "0") != "1":
-        print("[startup] simulator enabled; running simulator_loop()")
+        prov_registry.set_dataset(DEFAULT_SIM_META)
         asyncio.create_task(simulator_loop())
     else:
-        print("[startup] simulator disabled; running replay_loop()")
+        print("[startup] simulator disabled by env")
         asyncio.create_task(replay_loop())
-
 
 @app.get("/")
 def root():

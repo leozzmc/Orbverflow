@@ -5,14 +5,12 @@ import { getDatasetMeta, getIncidentsLatest, getMissionLatest, getAuditLatest } 
 
 type AppState = {
   dataset: any | null;
-  fleet: any[]; // satellites
+  fleet: any[];
   latestIncident: any | null;
   playbooks: any[];
-  mission: any | null; // recommendation
+  mission: any | null;
   audit: any[];
 };
-type WsEvent = any;
-
 
 const Ctx = createContext<{ state: AppState } | null>(null);
 
@@ -25,52 +23,63 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [audit, setAudit] = useState<any[]>([]);
 
   useEffect(() => {
-    // bootstrap REST
-    (async () => {
-      try { setDataset(await getDatasetMeta()); } catch {}
-      try {
-        const x = await getIncidentsLatest();
-        if (x?.has_incident) {
-          setLatestIncident(x.incident);
-          setPlaybooks(x.playbooks ?? []);
-        }
-      } catch {}
-      try {
-        const m = await getMissionLatest();
-        if (m?.has_plan) setMission(m.recommendation);
-      } catch {}
-      try {
-        const a = await getAuditLatest(50);
-        setAudit(a?.events ?? []);
-      } catch {}
-    })();
-  }, []);
+  // bootstrap REST
+  (async () => {
+    try {
+      const d = await getDatasetMeta();
+      setDataset(d?.dataset ?? d ?? null);
+    } catch {}
+
+    try {
+      const x = await getIncidentsLatest();
+      if (x?.has_incident) {
+        setLatestIncident(x.incident);
+        setPlaybooks(x.playbooks ?? []);
+      }
+    } catch {}
+
+    try {
+      const m = await getMissionLatest();
+      if (m?.has_plan) setMission(m.recommendation);
+    } catch {}
+
+    try {
+      const a = await getAuditLatest(50);
+      setAudit(a?.events ?? []);
+    } catch {}
+  })();
+}, []);
+
 
   useEffect(() => {
     const ws = connectWs((e: WsEvent) => {
       if (e?.type === "fleet_snapshot") {
         setFleet(e.satellites ?? []);
       }
-      if (e?.type === "incident_created") {
-        setLatestIncident(e.incident ?? null);
-        // playbooks may come together depending on your backend event shape
-        // if you include playbooks in incident_created event, parse them here
+
+      if (e?.type === "incident_created" || e?.type === "incident_updated") {
+        setLatestIncident((e as any).incident ?? null);
       }
+
       if (e?.type === "playbook_proposed") {
         setPlaybooks((prev) => {
-          const next = [...prev];
-          next.push(e.playbook);
-          return next;
+          const pb = (e as any).playbook;
+          if (!pb?.id) return prev;
+          // de-dupe
+          if (prev.some((p) => p.id === pb.id)) return prev;
+          return [...prev, pb];
         });
       }
+
       if (e?.type === "playbook_approved") {
-        setPlaybooks((prev) => prev.filter((p) => p.id !== e.playbook_id));
+        setPlaybooks((prev) => prev.filter((p) => p.id !== (e as any).playbook_id));
         alert("Action Approved by Operator");
       }
+
       if (e?.type === "mission_continuity_proposed") {
-        // some backends send {type, plan} or {type, recommendation}
         setMission((e as any).recommendation ?? e);
       }
+
       if (e?.type === "audit_log") {
         setAudit((prev) => {
           const next = [...prev, e];
@@ -82,9 +91,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     return () => ws.close();
   }, []);
 
-  const state = useMemo<AppState>(() => ({
-    dataset, fleet, latestIncident, playbooks, mission, audit
-  }), [dataset, fleet, latestIncident, playbooks, mission, audit]);
+  const state = useMemo<AppState>(
+    () => ({ dataset, fleet, latestIncident, playbooks, mission, audit }),
+    [dataset, fleet, latestIncident, playbooks, mission, audit]
+  );
 
   return <Ctx.Provider value={{ state }}>{children}</Ctx.Provider>;
 }
