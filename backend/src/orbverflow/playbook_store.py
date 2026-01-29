@@ -25,3 +25,9 @@ class PlaybookStore:
 
     def list_for_incident(self, incident_id: str) -> List[Playbook]:
         return [p for p in self._store.values() if getattr(p, "incident_id", None) == incident_id]
+
+    def list_latest(self, limit: int = 50) -> List[Playbook]:
+        items = list(self._store.values())
+        if limit <= 0:
+            return []
+        return items[-limit:]
