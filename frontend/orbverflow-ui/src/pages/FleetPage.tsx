@@ -1,62 +1,106 @@
-// src/pages/FleetPage.tsx
+// frontend/src/pages/FleetPage.tsx
 import React from "react";
 import { useAppStore } from "../store";
-import { triggerScenario } from "../api";
+import IncidentMap from "../component/IncidentMap";
+
+
 
 export default function FleetPage() {
-  const { dataset, fleet, mission } = useAppStore();
-  const [busy, setBusy] = React.useState(false);
-
-  async function run(scenario: string) {
-    setBusy(true);
-    try { await triggerScenario(scenario, 10); } finally { setBusy(false); }
-  }
+  const { fleet, latestIncident } = useAppStore();
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Badge label="Dataset" value={dataset?.source_dataset_id ?? dataset?.dataset?.source_dataset_id ?? "unknown"} />
-        <Badge label="Vendor" value={dataset?.source_vendor ?? dataset?.dataset?.source_vendor ?? "unknown"} />
-        <Badge label="Mapping" value={dataset?.mapping_version ?? dataset?.dataset?.mapping_version ?? "unknown"} />
+      <h2 style={{ margin: "6px 0 14px" }}>Fleet Overview</h2>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button disabled={busy} onClick={() => run("JAMMING")}>Trigger JAMMING</button>
-          <button disabled={busy} onClick={() => run("SATB_DOWN")}>Trigger SATB_DOWN</button>
-          <button disabled={busy} onClick={() => run("SPOOFING")}>Trigger SPOOFING</button>
+      <div style={styles.grid}>
+        <div style={styles.mapPanel}>
+          <IncidentMap satellites={fleet} incident={latestIncident} height={560} />
+        </div>
+
+        <div style={styles.cards}>
+          {fleet.map((s: any) => (
+            <SatCard key={s.sat_id} s={s} />
+          ))}
         </div>
       </div>
+      
+    </div>
+  );
+}
 
-      <h3 style={{ marginTop: 16 }}>Fleet Overview</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-        {fleet.map((s) => (
-          <div key={s.sat_id} style={{ border: "1px solid #333", borderRadius: 10, padding: 12 }}>
-            <div style={{ fontWeight: 700 }}>{s.sat_id}</div>
-            <div>link_state: <b>{s.link_state}</b></div>
-            <div>snr_db: {Number(s.snr_db).toFixed?.(1) ?? s.snr_db}</div>
-            <div>loss: {Number(s.packet_loss_pct).toFixed?.(0) ?? s.packet_loss_pct}%</div>
-            <div>pos: {fmtPos(s.position)}</div>
-            <div>vendor: {s.source_vendor ?? "SIM"}</div>
-          </div>
-        ))}
+function SatCard({ s }: { s: any }) {
+  const state = String(s.link_state ?? "UNKNOWN");
+  const dot =
+    state === "OK" ? "rgba(80,220,140,0.95)" :
+    state === "DEGRADED" ? "rgba(255,200,90,0.95)" :
+    state === "DOWN" ? "rgba(255,90,90,0.95)" :
+    "rgba(200,200,200,0.7)";
+
+  return (
+    <div style={styles.card}>
+      <div style={styles.cardTop}>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>{s.sat_id}</div>
+        <div style={{ width: 10, height: 10, borderRadius: 999, background: dot }} />
       </div>
 
-      <h3 style={{ marginTop: 16 }}>Mission Continuity (latest)</h3>
-      <pre style={{ border: "1px solid #333", borderRadius: 10, padding: 12, overflow: "auto" }}>
-        {mission ? JSON.stringify(mission, null, 2) : "No recommendation"}
-      </pre>
+      <div style={styles.kv}><span>link_state</span><b>{state}</b></div>
+      <div style={styles.kv}><span>snr_db</span><b>{fmt1(s.snr_db)}</b></div>
+      <div style={styles.kv}><span>loss</span><b>{fmt0(s.packet_loss_pct)}%</b></div>
+      <div style={styles.kv}><span>pos</span><b>{fmtPos(s.position)}</b></div>
+      <div style={styles.kv}><span>vendor</span><b>{s.source_vendor ?? "SIM"}</b></div>
     </div>
   );
 }
 
-function Badge({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ border: "1px solid #333", borderRadius: 999, padding: "4px 10px" }}>
-      <b>{label}:</b> {value}
-    </div>
-  );
+function fmt1(x: any) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n.toFixed(1) : String(x ?? "-");
 }
-
+function fmt0(x: any) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n.toFixed(0) : String(x ?? "-");
+}
 function fmtPos(p: any) {
   if (!p) return "-";
   return `${Number(p.lat).toFixed(2)}, ${Number(p.lon).toFixed(2)}`;
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 1fr",
+    gap: 16,
+    alignItems: "start",
+  },
+  mapPanel: {
+    borderRadius: 16,
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.03)",
+  },
+  cards: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 12,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 14,
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.12)",
+  },
+  cardTop: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  kv: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "4px 0",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    opacity: 0.95,
+  },
+};
+

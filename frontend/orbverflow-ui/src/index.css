@@ -1,4 +1,4 @@
-:root {
+/* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -64,5 +64,86 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+  }
+} */
+
+/* frontend/src/index.css */
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  background: #141414;
+  color: rgba(255,255,255,0.92);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue";
+}
+
+* { box-sizing: border-box; }
+
+a { color: inherit; }
+
+/* ✅ App 外框：置中 + 自適應 */
+.orb-shell {
+  width: 100%;
+  max-width: 1520px;   /* 你也可以調大，例如 1680 */
+  margin: 0 auto;
+  padding: 14px 18px 28px;
+}
+
+/* ✅ 頂部工具列固定風格（每頁一致） */
+.orb-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.orb-topbar .spacer {
+  flex: 1;
+}
+
+.orb-chip {
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.03);
+  white-space: nowrap;
+}
+
+.orb-btn {
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.92);
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.orb-btn:hover { background: rgba(255,255,255,0.06); }
+.orb-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.orb-card {
+  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ✅ 兩欄布局：左 panel + 右 map / content */
+.orb-2col {
+  display: grid;
+  grid-template-columns: minmax(360px, 460px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .orb-2col {
+    grid-template-columns: 1fr;
   }
 }
