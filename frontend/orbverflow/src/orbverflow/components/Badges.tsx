@@ -25,7 +25,7 @@ export function ScenarioBanner({ activeTab }: { activeTab?: string }) {
   // When on ScenarioDemo tab, show the specific scenario name
   const isScenarioDemo = activeTab === 'ScenarioDemo'
   const displayScenario = isScenarioDemo
-    ? 'Resilient Satellite Operations Under Ku-band Jamming'
+    ? 'Resilient Satellite Operations Under S-band Jamming'
     : scenario
   const isBad =
     scenario === 'JAMMING' ||

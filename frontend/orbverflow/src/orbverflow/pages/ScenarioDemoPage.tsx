@@ -11,11 +11,14 @@ import {
   Marker,
   Circle,
   Tooltip,
+  Polyline,
   useMap,
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Play, Pause, SkipBack, SkipForward, RotateCcw, X } from 'lucide-react'
+// Satellite footprint radius in meters (approximately 200km coverage)
+const FOOTPRINT_RADIUS = 200000
 // Satellite icons
 const SAT_ICON = new L.DivIcon({
   className: 'sat-marker',
@@ -41,37 +44,49 @@ const OUTOFBAND_ICON = new L.DivIcon({
   iconSize: [12, 12],
   iconAnchor: [6, 6],
 })
-// Initial satellite positions around Taiwan
+// Initial satellite positions around Taiwan - Real Flock satellite data
+// Reference time range: 30/01/2026 14:50:11 UTC to 14:51:52 UTC (101 seconds)
+// Initial positions calculated at 14:51:00 UTC (T+49s from start)
 const INITIAL_SATELLITES = [
   {
-    id: 'SatA',
-    lat: 22.5,
-    lon: 118.5,
-    orbit: 1,
+    id: 'Flock 4g-14',
+    lat: 25.912,
+    lon: 117.0802,
+    alt: 491.37,
+    velLat: 0.0635,
+    velLon: -0.0145,
   },
   {
-    id: 'SatB',
-    lat: 23.5,
-    lon: 119.5,
-    orbit: 1,
+    id: 'Flock 4g-32',
+    lat: 23.6981,
+    lon: 118.7943,
+    alt: 466.88,
+    velLat: 0.0642,
+    velLon: -0.0142,
   },
   {
-    id: 'SatC',
-    lat: 25.0,
-    lon: 122.0,
-    orbit: 2,
+    id: 'Flock 4g-17',
+    lat: 20.3357,
+    lon: 117.6394,
+    alt: 493.17,
+    velLat: 0.0635,
+    velLon: -0.0136,
   },
   {
-    id: 'SatD',
-    lat: 24.0,
-    lon: 123.0,
-    orbit: 2,
+    id: 'Flock 4g-16',
+    lat: 20.3911,
+    lon: 121.3309,
+    alt: 443.06,
+    velLat: 0.0642,
+    velLon: -0.0137,
   },
   {
-    id: 'SatE',
-    lat: 23.0,
-    lon: 124.0,
-    orbit: 2,
+    id: 'Flock 4g-28',
+    lat: 19.5924,
+    lon: 123.0113,
+    alt: 434.63,
+    velLat: 0.0479,
+    velLon: -0.0135,
   },
 ]
 // Timeline phases for navigation
@@ -98,7 +113,7 @@ const PHASES = [
   },
   {
     time: 18,
-    label: 'SatB Down',
+    label: '4g-16 Down',
   },
   {
     time: 25,
@@ -112,12 +127,263 @@ function MapController({ center }: { center: [number, number] }) {
   }, [])
   return null
 }
+// Satellite Footprint Circle Component
+function SatelliteFootprint({
+  satellite,
+  isFlashing,
+}: {
+  satellite: any
+  isFlashing: boolean
+}) {
+  const state = satellite.link_state
+  // Determine footprint color based on state - increased fill opacity for better visibility
+  let strokeColor = 'rgba(74, 222, 128, 0.7)' // Green for OK
+  let fillColor = 'rgba(74, 222, 128, 0.15)'
+  let strokeWeight = 1.5
+  let fillOpacity = isFlashing ? 0.25 : 0.18
+  if (state === 'DEGRADED') {
+    strokeColor = 'rgba(251, 191, 36, 0.85)' // Yellow/amber for degraded
+    fillColor = 'rgba(251, 191, 36, 0.2)'
+    fillOpacity = isFlashing ? 0.35 : 0.25
+  } else if (state === 'DOWN') {
+    strokeColor = 'rgba(248, 113, 113, 0.9)' // Red for down
+    fillColor = 'rgba(248, 113, 113, 0.25)'
+    strokeWeight = 2
+    fillOpacity = isFlashing ? 0.4 : 0.3
+  } else if (state === 'OUTOFBAND') {
+    strokeColor = 'rgba(168, 85, 247, 0.8)' // Purple for out-of-band
+    fillColor = 'rgba(168, 85, 247, 0.18)'
+    fillOpacity = 0.2
+  }
+  return (
+    <Circle
+      center={[satellite.lat, satellite.lon]}
+      radius={FOOTPRINT_RADIUS}
+      pathOptions={{
+        color: strokeColor,
+        fillColor: fillColor,
+        weight: strokeWeight,
+        fillOpacity: fillOpacity,
+        opacity:
+          isFlashing && (state === 'DEGRADED' || state === 'DOWN') ? 0.95 : 0.8,
+      }}
+    />
+  )
+}
+// ISL Map Link Component - Animated line between satellites on the map
+function ISLMapLink({
+  sat1,
+  sat2,
+  isActive,
+}: {
+  sat1: any
+  sat2: any
+  isActive: boolean
+}) {
+  if (!isActive || !sat1 || !sat2) return null
+  const positions: [number, number][] = [
+    [sat1.lat, sat1.lon],
+    [sat2.lat, sat2.lon],
+  ]
+  return (
+    <>
+      {/* Glow effect - wider, more transparent line */}
+      <Polyline
+        positions={positions}
+        pathOptions={{
+          color: '#22c55e',
+          weight: 8,
+          opacity: 0.3,
+          lineCap: 'round',
+        }}
+      />
+      {/* Main line */}
+      <Polyline
+        positions={positions}
+        pathOptions={{
+          color: '#4ade80',
+          weight: 3,
+          opacity: 0.9,
+          lineCap: 'round',
+          dashArray: '10, 5',
+          className: 'isl-map-line-animated',
+        }}
+      />
+      {/* Inner bright line */}
+      <Polyline
+        positions={positions}
+        pathOptions={{
+          color: '#86efac',
+          weight: 1.5,
+          opacity: 1,
+          lineCap: 'round',
+        }}
+      />
+    </>
+  )
+}
 // Highlight Card Component
 function HighlightCard({ text, visible }: { text: string; visible: boolean }) {
   if (!visible) return null
   return (
     <div className="rounded-xl p-4 bg-red-900/40 border border-red-500/50 backdrop-blur-sm">
       <div className="text-lg font-bold text-red-300">{text}</div>
+    </div>
+  )
+}
+// ISL Link Diagram Component - Updated to show 4g-17 (left), 4g-16 (center), 4g-28 (right)
+function ISLLinkDiagram({
+  visible,
+  showCommandRelay,
+  commandFlowActive,
+  showDataTransfer,
+}: {
+  visible: boolean
+  showCommandRelay: boolean
+  commandFlowActive: boolean
+  showDataTransfer: boolean
+}) {
+  if (!visible) return null
+  return (
+    <div className="rounded-xl p-5 bg-gray-900/50 border border-purple-500/30 backdrop-blur-sm">
+      <div className="text-base font-medium text-purple-300 mb-4">
+        ISL Tunnel Active
+      </div>
+
+      {/* Satellite Link Diagram: 4g-17 ↔ 4g-16 ↔ 4g-28 */}
+      <div className="flex items-center justify-center gap-2 py-4">
+        {/* Flock 4g-17 (Left) */}
+        <div className="flex flex-col items-center relative">
+          <div className="w-14 h-14 rounded-full bg-purple-500/20 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.5)]">
+            <span className="text-[10px] font-bold text-purple-300 text-center leading-tight">
+              4g-17
+            </span>
+          </div>
+          {showCommandRelay && (
+            <div className="mt-2 text-xs text-green-400 font-medium animate-pulse">
+              Command Relay
+            </div>
+          )}
+          {showDataTransfer && (
+            <div className="absolute -top-2 -right-2">
+              <div className="w-4 h-4 rounded-full bg-green-500 animate-ping opacity-75" />
+              <div className="absolute inset-0 w-4 h-4 rounded-full bg-green-400" />
+            </div>
+          )}
+        </div>
+
+        {/* ISL Link 17-16 */}
+        <div className="flex flex-col items-center mx-1 relative">
+          <div className="text-[10px] text-purple-400 font-medium mb-1">
+            ISL
+          </div>
+          <div className="relative w-16 h-1">
+            <div className="absolute inset-0 bg-purple-500/30 rounded-full" />
+            <div className="absolute inset-0 overflow-hidden rounded-full">
+              <div
+                className={`h-full bg-gradient-to-r from-purple-500 via-purple-300 to-purple-500 rounded-full ${showDataTransfer ? 'animate-isl-data-right' : commandFlowActive ? 'animate-isl-flow-right' : 'animate-isl-glow'}`}
+                style={{
+                  width:
+                    showDataTransfer || commandFlowActive ? '200%' : '100%',
+                }}
+              />
+            </div>
+            {showDataTransfer && (
+              <>
+                <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)] animate-data-packet-right" />
+                <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)] animate-data-packet-right-delayed" />
+              </>
+            )}
+          </div>
+          {showDataTransfer ? (
+            <div className="text-[10px] text-green-400 mt-1 font-medium">
+              DATA →
+            </div>
+          ) : commandFlowActive ? (
+            <div className="text-[10px] text-green-400 mt-1 animate-pulse">
+              →
+            </div>
+          ) : null}
+        </div>
+
+        {/* Flock 4g-16 (Center) */}
+        <div className="flex flex-col items-center relative">
+          <div
+            className={`w-14 h-14 rounded-full flex items-center justify-center ${showDataTransfer ? 'bg-green-500/20 border-2 border-green-500 shadow-[0_0_20px_rgba(74,222,128,0.5)]' : 'bg-purple-500/20 border-2 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)]'}`}
+          >
+            <span
+              className={`text-[10px] font-bold text-center leading-tight ${showDataTransfer ? 'text-green-300' : 'text-purple-300'}`}
+            >
+              4g-16
+            </span>
+          </div>
+          <div
+            className={`mt-2 text-xs font-medium ${showDataTransfer ? 'text-green-400' : 'text-purple-400'}`}
+          >
+            {showDataTransfer ? 'RELAY' : 'HUB'}
+          </div>
+        </div>
+
+        {/* ISL Link 16-28 */}
+        <div className="flex flex-col items-center mx-1 relative">
+          <div className="text-[10px] text-purple-400 font-medium mb-1">
+            ISL
+          </div>
+          <div className="relative w-16 h-1">
+            <div className="absolute inset-0 bg-purple-500/30 rounded-full" />
+            <div className="absolute inset-0 overflow-hidden rounded-full">
+              <div
+                className={`h-full bg-gradient-to-r from-purple-500 via-purple-300 to-purple-500 rounded-full ${showDataTransfer ? 'animate-isl-data-right' : commandFlowActive ? 'animate-isl-flow-right' : 'animate-isl-glow'}`}
+                style={{
+                  width:
+                    showDataTransfer || commandFlowActive ? '200%' : '100%',
+                }}
+              />
+            </div>
+            {showDataTransfer && (
+              <>
+                <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)] animate-data-packet-right" />
+                <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)] animate-data-packet-right-delayed" />
+              </>
+            )}
+          </div>
+          {showDataTransfer ? (
+            <div className="text-[10px] text-green-400 mt-1 font-medium">
+              DATA →
+            </div>
+          ) : commandFlowActive ? (
+            <div className="text-[10px] text-green-400 mt-1 animate-pulse">
+              →
+            </div>
+          ) : null}
+        </div>
+
+        {/* Flock 4g-28 (Right) */}
+        <div className="flex flex-col items-center relative">
+          <div className="w-14 h-14 rounded-full bg-purple-500/20 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_20px_rgba(168,85,247,0.5)]">
+            <span className="text-[10px] font-bold text-purple-300 text-center leading-tight">
+              4g-28
+            </span>
+          </div>
+          {showCommandRelay && (
+            <div className="mt-2 text-xs text-green-400 font-medium animate-pulse">
+              Command Relay
+            </div>
+          )}
+          {showDataTransfer && (
+            <div className="absolute -top-2 -left-2">
+              <div className="w-4 h-4 rounded-full bg-green-500 animate-ping opacity-75" />
+              <div className="absolute inset-0 w-4 h-4 rounded-full bg-green-400" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="text-center text-xs text-gray-400 mt-2">
+        {showDataTransfer
+          ? 'Mission data being relayed via ISL: 4g-17 → 4g-16 → 4g-28'
+          : 'Inter-Satellite Link (ISL) providing out-of-band communication'}
+      </div>
     </div>
   )
 }
@@ -222,7 +488,7 @@ export default function ScenarioDemoPage() {
       ...s,
       link_state: 'OK',
       snr_db: 15 + Math.random() * 10,
-      packet_loss_pct: Math.random() * 5, // OK state: 0-5%
+      packet_loss_pct: Math.random() * 5,
     })),
   )
   // Boot log style message system
@@ -238,21 +504,34 @@ export default function ScenarioDemoPage() {
     lon: number
     radius: number
   } | null>(null)
+  // Estimated jamming source zone
+  const [showJammingZone, setShowJammingZone] = useState(false)
+  const [jammingZone, setJammingZone] = useState<{
+    lat: number
+    lon: number
+    radius: number
+  } | null>(null)
   const [proposedPlaybooks, setProposedPlaybooks] = useState<any[]>([])
-  const [showTransferProgress, setShowTransferProgress] = useState(false)
-  const [transferProgress, setTransferProgress] = useState(0)
-  const [transferLogs, setTransferLogs] = useState<string[]>([])
+  // ISL Link states
+  const [showISLDiagram, setShowISLDiagram] = useState(false)
+  const [showCommandRelay, setShowCommandRelay] = useState(false)
+  const [commandFlowActive, setCommandFlowActive] = useState(false)
+  const [showDataTransfer, setShowDataTransfer] = useState(false)
+  // ISL Map Lines state
+  const [showISLMapLines, setShowISLMapLines] = useState(false)
   const [playbookActionLogs, setPlaybookActionLogs] = useState<string[]>([])
   const [showPlaybookActions, setShowPlaybookActions] = useState(false)
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingPlaybookId, setPendingPlaybookId] = useState('')
+  // Footprint flashing state
+  const [footprintFlash, setFootprintFlash] = useState(false)
   // Track which events have been triggered to prevent re-triggering
   const triggeredEventsRef = useRef<Set<number>>(new Set())
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const animationRef = useRef<NodeJS.Timeout | null>(null)
-  const transferRef = useRef<NodeJS.Timeout | null>(null)
   const bootLogTimeoutsRef = useRef<NodeJS.Timeout[]>([])
+  const flashIntervalRef = useRef<NodeJS.Timeout | null>(null)
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -267,7 +546,6 @@ export default function ScenarioDemoPage() {
   // Show boot log with title - stable version
   const showBootLogWithTitle = useCallback(
     (title: string, messages: string[], interval = 800) => {
-      // Clear any existing timeouts
       clearBootLogTimeouts()
       setBootLogTitle(title)
       setBootLogs([])
@@ -281,13 +559,27 @@ export default function ScenarioDemoPage() {
     },
     [clearBootLogTimeouts],
   )
+  // Start footprint flashing
+  const startFootprintFlashing = useCallback(() => {
+    if (flashIntervalRef.current) clearInterval(flashIntervalRef.current)
+    flashIntervalRef.current = setInterval(() => {
+      setFootprintFlash((prev) => !prev)
+    }, 500)
+  }, [])
+  // Stop footprint flashing
+  const stopFootprintFlashing = useCallback(() => {
+    if (flashIntervalRef.current) {
+      clearInterval(flashIntervalRef.current)
+      flashIntervalRef.current = null
+    }
+    setFootprintFlash(false)
+  }, [])
   // Reset demo state
   const resetDemo = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current)
     if (animationRef.current) clearInterval(animationRef.current)
-    if (transferRef.current) clearInterval(transferRef.current)
     clearBootLogTimeouts()
-    // Reset triggered events
+    stopFootprintFlashing()
     triggeredEventsRef.current = new Set()
     setIsRunning(false)
     setIsPaused(false)
@@ -295,10 +587,14 @@ export default function ScenarioDemoPage() {
     setDemoCompleted(false)
     setShowJammingCircle(false)
     setJammingSource(null)
+    setShowJammingZone(false)
+    setJammingZone(null)
     setProposedPlaybooks([])
-    setShowTransferProgress(false)
-    setTransferProgress(0)
-    setTransferLogs([])
+    setShowISLDiagram(false)
+    setShowCommandRelay(false)
+    setCommandFlowActive(false)
+    setShowDataTransfer(false)
+    setShowISLMapLines(false)
     setBootLogs([])
     setShowBootLog(false)
     setBootLogTitle('')
@@ -313,19 +609,17 @@ export default function ScenarioDemoPage() {
         ...s,
         link_state: 'OK',
         snr_db: 15 + Math.random() * 10,
-        packet_loss_pct: Math.random() * 5, // OK state: 0-5%
+        packet_loss_pct: Math.random() * 5,
       })),
     )
-  }, [clearBootLogTimeouts])
+  }, [clearBootLogTimeouts, stopFootprintFlashing])
   // Start the demo scenario
   const startDemo = () => {
     resetDemo()
     setIsRunning(true)
     setIsPaused(false)
-    // Show "Demo Start" boot log
     showBootLogWithTitle('', ['Demo Start...'], 500)
     setTimeout(() => setShowBootLog(false), 1500)
-    // Start timer
     timerRef.current = setInterval(() => {
       setElapsedTime((prev) => prev + 1)
     }, 1000)
@@ -344,7 +638,6 @@ export default function ScenarioDemoPage() {
   // Jump to specific phase
   const jumpToPhase = (targetTime: number) => {
     if (timerRef.current) clearInterval(timerRef.current)
-    // Clear triggered events for times >= targetTime so they can re-trigger
     const newTriggered = new Set<number>()
     triggeredEventsRef.current.forEach((t) => {
       if (t < targetTime) newTriggered.add(t)
@@ -385,16 +678,28 @@ export default function ScenarioDemoPage() {
     clearBootLogTimeouts()
     setShowJammingCircle(false)
     setJammingSource(null)
+    setShowJammingZone(false)
+    setJammingZone(null)
     setProposedPlaybooks([])
-    setShowTransferProgress(false)
     setBootLogs([])
     setShowBootLog(false)
     setShowHighlight(false)
     if (time >= 1) {
+      // Start footprint flashing for degraded satellites
+      startFootprintFlashing()
       setSatellites((prev) =>
         prev.map((s) => {
-          if (s.id === 'SatB' && time >= 18) {
-            // SatB is DOWN after T+18s
+          // Flock 4g-14 always stays OK
+          if (s.id === 'Flock 4g-14') {
+            return {
+              ...s,
+              link_state: 'OK',
+              snr_db: 15 + Math.random() * 10,
+              packet_loss_pct: Math.random() * 5,
+            }
+          }
+          // Flock 4g-16 goes DOWN at T+18s
+          if (s.id === 'Flock 4g-16' && time >= 18) {
             return {
               ...s,
               link_state: 'DOWN',
@@ -402,23 +707,22 @@ export default function ScenarioDemoPage() {
               packet_loss_pct: 100,
             }
           } else {
-            // All others are DEGRADED: snr < 7, loss 70-93%
             return {
               ...s,
               link_state: 'DEGRADED',
               snr_db: Math.random() * 7,
-              packet_loss_pct: 70 + Math.random() * 23, // 70-93%
+              packet_loss_pct: 70 + Math.random() * 23,
             }
           }
         }),
       )
-      // Show boot log for the current phase
       if (time >= 1 && time < 5) {
         showBootLogWithTitle(
           'Link Degradation Detected',
           [
             'Satellites link degradation detected',
-            '5 LEO satellites reporting packet loss',
+            '4 LEO satellites reporting packet loss',
+            'Flock 4g-14 unaffected - outside impact zone',
             'Forming cluster....',
             'SNR drop detected across cluster',
           ],
@@ -426,13 +730,13 @@ export default function ScenarioDemoPage() {
         )
       }
     } else {
-      // Before T+1s: OK state
+      stopFootprintFlashing()
       setSatellites(
         INITIAL_SATELLITES.map((s) => ({
           ...s,
           link_state: 'OK',
           snr_db: 15 + Math.random() * 10,
-          packet_loss_pct: Math.random() * 5, // OK state: 0-5%
+          packet_loss_pct: Math.random() * 5,
         })),
       )
     }
@@ -454,6 +758,13 @@ export default function ScenarioDemoPage() {
         lat: 23.5,
         lon: 120.5,
         radius: 500000,
+      })
+      // Show estimated jamming source zone
+      setShowJammingZone(true)
+      setJammingZone({
+        lat: 21.5,
+        lon: 120.0,
+        radius: 150000,
       })
       if (time >= 10 && time < 15) {
         showBootLogWithTitle(
@@ -496,7 +807,7 @@ export default function ScenarioDemoPage() {
           state: 'PROPOSED',
           actions: [
             'Publish mission state summary (signed + anti-replay)',
-            'Select candidate replacement satellites (SatA / SatC)',
+            'Select candidate replacement satellites (Flock 4g-17 / Flock 4g-28)',
             'Recommend switching window and degradation strategy',
           ],
         })
@@ -507,28 +818,35 @@ export default function ScenarioDemoPage() {
   // Handle time-based events
   useEffect(() => {
     if (!isRunning || isPaused) return
-    // Check if this event has already been triggered
     const triggerEvent = (time: number, callback: () => void) => {
       if (elapsedTime === time && !triggeredEventsRef.current.has(time)) {
         triggeredEventsRef.current.add(time)
         callback()
       }
     }
-    // T+1s: Satellites link degradation
+    // T+1s: Satellites link degradation (except Flock 4g-14)
     triggerEvent(1, () => {
+      startFootprintFlashing()
       setSatellites((prev) =>
-        prev.map((s) => ({
-          ...s,
-          link_state: 'DEGRADED',
-          snr_db: 5 + Math.random() * 2,
-          packet_loss_pct: 70 + Math.random() * 23, // 70-93%
-        })),
+        prev.map((s) => {
+          // Flock 4g-14 always stays OK
+          if (s.id === 'Flock 4g-14') {
+            return s // Keep current OK state
+          }
+          return {
+            ...s,
+            link_state: 'DEGRADED',
+            snr_db: 5 + Math.random() * 2,
+            packet_loss_pct: 70 + Math.random() * 23,
+          }
+        }),
       )
       showBootLogWithTitle(
         'Link Degradation Detected',
         [
           'Satellites link degradation detected',
-          '5 LEO satellites reporting packet loss',
+          '4 LEO satellites reporting packet loss',
+          'Flock 4g-14 unaffected - outside impact zone',
           'Forming cluster....',
           'SNR drop detected across cluster',
         ],
@@ -555,6 +873,13 @@ export default function ScenarioDemoPage() {
         lat: 23.5,
         lon: 120.5,
         radius: 500000,
+      })
+      // Show estimated jamming source zone
+      setShowJammingZone(true)
+      setJammingZone({
+        lat: 21.5,
+        lon: 120.0,
+        radius: 150000,
       })
       showBootLogWithTitle(
         'Threat Analysis',
@@ -588,11 +913,11 @@ export default function ScenarioDemoPage() {
         },
       ])
     })
-    // T+18s: SatB Down, Playbook-07
+    // T+18s: Flock 4g-16 Down, Playbook-07
     triggerEvent(18, () => {
       setSatellites((prev) =>
         prev.map((s) =>
-          s.id === 'SatB'
+          s.id === 'Flock 4g-16'
             ? {
                 ...s,
                 link_state: 'DOWN',
@@ -610,13 +935,19 @@ export default function ScenarioDemoPage() {
           state: 'PROPOSED',
           actions: [
             'Publish mission state summary (signed + anti-replay)',
-            'Select candidate replacement satellites (SatA / SatC)',
+            'Select candidate replacement satellites (Flock 4g-17 / Flock 4g-28)',
             'Recommend switching window and degradation strategy',
           ],
         },
       ])
     })
-  }, [elapsedTime, isRunning, isPaused, showBootLogWithTitle])
+  }, [
+    elapsedTime,
+    isRunning,
+    isPaused,
+    showBootLogWithTitle,
+    startFootprintFlashing,
+  ])
   // Request playbook approval
   const requestApproval = (id: string) => {
     setPendingPlaybookId(id)
@@ -658,71 +989,90 @@ export default function ScenarioDemoPage() {
       },
       (playbook.actions.length + 1) * 600,
     )
-    // Only start transfer after Playbook-07 is approved
-    if (id === 'Playbook-07') {
+    if (id === 'Playbook-04') {
+      // After Playbook-04: Switch to OUTOFBAND and show ISL diagram
       setTimeout(
         () => {
-          startTransfer()
+          stopFootprintFlashing()
+          // Change satellites to OUTOFBAND (except Flock 4g-14 which stays OK)
+          setSatellites((prev) =>
+            prev.map((s) => {
+              if (s.id === 'Flock 4g-14') {
+                return {
+                  ...s,
+                  link_state: 'OK',
+                  snr_db: 15 + Math.random() * 10,
+                  packet_loss_pct: Math.random() * 5,
+                }
+              }
+              return {
+                ...s,
+                link_state: 'OUTOFBAND',
+                snr_db: 18 + Math.random() * 7,
+                packet_loss_pct: Math.random() * 3,
+              }
+            }),
+          )
+          // Show ISL diagram and hide jamming highlight
+          setShowISLDiagram(true)
+          setShowHighlight(false)
+          setShowPlaybookActions(false)
         },
         (playbook.actions.length + 2) * 600,
       )
-    } else {
-      // For Playbook-04, just hide the action logs after completion
+    } else if (id === 'Playbook-07') {
+      // After Playbook-07: Show command relay and boot logs
       setTimeout(
         () => {
           setShowPlaybookActions(false)
+          setShowCommandRelay(true)
+          setCommandFlowActive(true)
+          // Show command relay activation boot logs - Updated for 4g-17, 4g-16, 4g-28
+          showBootLogWithTitle(
+            'Command Relay Mode Activation',
+            [
+              'Activating Out-of-band tunnel...',
+              'Establishing secure ISL channel...',
+              'Flock 4g-17: Initiating command relay...',
+              'Flock 4g-16: Configuring as relay hub...',
+              'Flock 4g-28: Initiating command relay...',
+              'Routing commands via ISL mesh...',
+              'Validating relay parameters...',
+              'All relay nodes synchronized',
+              '✓ Command Relay Mode Activated',
+            ],
+            800,
+          )
+          // After boot log completes, show data transfer animation and ISL map lines
+          setTimeout(
+            () => {
+              setShowDataTransfer(true)
+              setShowISLMapLines(true)
+              setCommandFlowActive(false)
+            },
+            9 * 800 + 500,
+          )
+          // Complete demo after data transfer shows
+          setTimeout(
+            () => {
+              if (timerRef.current) clearInterval(timerRef.current)
+              setDemoCompleted(true)
+              setElapsedTime(0)
+              setIsRunning(false)
+            },
+            9 * 800 + 2500,
+          )
         },
-        (playbook.actions.length + 3) * 600,
+        (playbook.actions.length + 2) * 600,
       )
     }
-  }
-  // Start mission transfer
-  const startTransfer = () => {
-    setShowPlaybookActions(false)
-    setShowTransferProgress(true)
-    setTransferProgress(0)
-    setTransferLogs(['Activating Out-of-band tunnel...'])
-    let progress = 0
-    transferRef.current = setInterval(() => {
-      progress += 2
-      setTransferProgress(progress)
-      if (progress === 20)
-        setTransferLogs((prev) => [...prev, 'Establishing secure channel...'])
-      if (progress === 40)
-        setTransferLogs((prev) => [...prev, 'Transferring mission state...'])
-      if (progress === 60)
-        setTransferLogs((prev) => [
-          ...prev,
-          'Validating handover parameters...',
-        ])
-      if (progress === 80)
-        setTransferLogs((prev) => [...prev, 'Confirming satellite switch...'])
-      if (progress >= 100) {
-        if (transferRef.current) clearInterval(transferRef.current)
-        setTransferLogs((prev) => [...prev, '✓ Mission transfer complete'])
-        // Change all satellites to out-of-band (purple)
-        setSatellites((prev) =>
-          prev.map((s) => ({
-            ...s,
-            link_state: 'OUTOFBAND',
-            snr_db: 20 + Math.random() * 5,
-            packet_loss_pct: Math.random() * 3,
-          })),
-        )
-        // Stop timer and mark complete
-        if (timerRef.current) clearInterval(timerRef.current)
-        setDemoCompleted(true)
-        setElapsedTime(0)
-        setIsRunning(false)
-      }
-    }, 100)
   }
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
       if (animationRef.current) clearInterval(animationRef.current)
-      if (transferRef.current) clearInterval(transferRef.current)
+      if (flashIntervalRef.current) clearInterval(flashIntervalRef.current)
       clearBootLogTimeouts()
     }
   }, [clearBootLogTimeouts])
@@ -732,33 +1082,31 @@ export default function ScenarioDemoPage() {
     animationRef.current = setInterval(() => {
       setSatellites((prev) =>
         prev.map((s) => {
-          const speed = 0.025
-          const newLat =
-            s.orbit === 1 ? s.lat + speed * 0.5 : s.lat - speed * 0.3
-          const newLon = s.orbit === 1 ? s.lon + speed : s.lon - speed * 0.5
-          // Update telemetry based on current state
+          // Use real velocity data - animation runs every 300ms (0.3 seconds)
+          const timeScale = 0.3
+          const newLat = s.lat + (s.velLat || 0) * timeScale
+          const newLon = s.lon + (s.velLon || 0) * timeScale
           let newSnr = s.snr_db
           let newLoss = s.packet_loss_pct
-          if (s.link_state === 'OK') {
-            // OK state: snr > 15, loss < 5%
-            newSnr = 15 + Math.random() * 10 // 15-25
-            newLoss = Math.random() * 5 // 0-5%
+          // Flock 4g-14 always maintains OK state values
+          if (s.id === 'Flock 4g-14' && s.link_state === 'OK') {
+            newSnr = 15 + Math.random() * 10
+            newLoss = Math.random() * 5
+          } else if (s.link_state === 'OK') {
+            newSnr = 15 + Math.random() * 10
+            newLoss = Math.random() * 5
           } else if (s.link_state === 'DEGRADED') {
-            // DEGRADED state: snr < 7 trending toward 0, loss 70-93%
-            // Gradually decrease SNR toward 0
             newSnr = Math.max(
               0,
               Math.min(7, s.snr_db - 0.1 + (Math.random() - 0.6) * 0.5),
             )
-            newLoss = 70 + Math.random() * 23 // 70-93%
+            newLoss = 70 + Math.random() * 23
           } else if (s.link_state === 'DOWN') {
-            // DOWN state: snr = 0, loss = 100%
             newSnr = 0
             newLoss = 100
           } else if (s.link_state === 'OUTOFBAND') {
-            // OUTOFBAND state: recovered, good values
-            newSnr = 18 + Math.random() * 7 // 18-25
-            newLoss = Math.random() * 3 // 0-3%
+            newSnr = 18 + Math.random() * 7
+            newLoss = Math.random() * 3
           }
           return {
             ...s,
@@ -780,8 +1128,88 @@ export default function ScenarioDemoPage() {
     if (state === 'OUTOFBAND') return OUTOFBAND_ICON
     return SAT_ICON
   }
+  // Get satellites for ISL map lines
+  const sat4g17 = satellites.find((s) => s.id === 'Flock 4g-17')
+  const sat4g16 = satellites.find((s) => s.id === 'Flock 4g-16')
+  const sat4g28 = satellites.find((s) => s.id === 'Flock 4g-28')
   return (
     <div className="animate-fade-in">
+      <style>{`
+        @keyframes isl-glow {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+        @keyframes isl-flow-right {
+          0% { transform: translateX(-50%); }
+          100% { transform: translateX(0%); }
+        }
+        @keyframes isl-flow-left {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
+        }
+        @keyframes isl-data-right {
+          0% { transform: translateX(-50%); background: linear-gradient(to right, #22c55e, #4ade80, #22c55e); }
+          100% { transform: translateX(0%); background: linear-gradient(to right, #22c55e, #4ade80, #22c55e); }
+        }
+        @keyframes isl-data-left {
+          0% { transform: translateX(0%); background: linear-gradient(to right, #22c55e, #4ade80, #22c55e); }
+          100% { transform: translateX(-50%); background: linear-gradient(to right, #22c55e, #4ade80, #22c55e); }
+        }
+        @keyframes data-packet-right {
+          0% { left: 0%; opacity: 1; }
+          100% { left: 100%; opacity: 0.5; }
+        }
+        @keyframes data-packet-left {
+          0% { right: 0%; opacity: 1; }
+          100% { right: 100%; opacity: 0.5; }
+        }
+        @keyframes footprint-pulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.7; }
+        }
+        @keyframes isl-line-dash {
+          0% { stroke-dashoffset: 30; }
+          100% { stroke-dashoffset: 0; }
+        }
+        .animate-isl-glow {
+          animation: isl-glow 1.5s ease-in-out infinite;
+        }
+        .animate-isl-flow-right {
+          animation: isl-flow-right 1s linear infinite;
+        }
+        .animate-isl-flow-left {
+          animation: isl-flow-left 1s linear infinite;
+        }
+        .animate-isl-data-right {
+          animation: isl-data-right 0.8s linear infinite;
+          background: linear-gradient(to right, #22c55e, #4ade80, #22c55e) !important;
+        }
+        .animate-isl-data-left {
+          animation: isl-data-left 0.8s linear infinite;
+          background: linear-gradient(to right, #22c55e, #4ade80, #22c55e) !important;
+        }
+        .animate-data-packet-right {
+          animation: data-packet-right 0.6s linear infinite;
+        }
+        .animate-data-packet-right-delayed {
+          animation: data-packet-right 0.6s linear infinite;
+          animation-delay: 0.3s;
+        }
+        .animate-data-packet-left {
+          animation: data-packet-left 0.6s linear infinite;
+        }
+        .animate-data-packet-left-delayed {
+          animation: data-packet-left 0.6s linear infinite;
+          animation-delay: 0.3s;
+        }
+        .footprint-flash {
+          animation: footprint-pulse 0.5s ease-in-out infinite;
+        }
+        .isl-map-line-animated {
+          animation: isl-line-dash 1s linear infinite;
+        }
+      `}</style>
+
       {/* Confirmation Modal */}
       <ConfirmationModal
         visible={showConfirmModal}
@@ -882,6 +1310,28 @@ export default function ScenarioDemoPage() {
               />
               <MapController center={[23.7, 121.0]} />
 
+              {/* ISL Map Lines - between 4g-17, 4g-16, and 4g-28 */}
+              <ISLMapLink
+                sat1={sat4g17}
+                sat2={sat4g16}
+                isActive={showISLMapLines}
+              />
+              <ISLMapLink
+                sat1={sat4g16}
+                sat2={sat4g28}
+                isActive={showISLMapLines}
+              />
+
+              {/* Satellite Footprints */}
+              {satellites.map((s) => (
+                <SatelliteFootprint
+                  key={`footprint-${s.id}`}
+                  satellite={s}
+                  isFlashing={footprintFlash}
+                />
+              ))}
+
+              {/* Satellite Markers */}
               {satellites.map((s) => (
                 <Marker
                   key={s.id}
@@ -900,6 +1350,33 @@ export default function ScenarioDemoPage() {
                 </Marker>
               ))}
 
+              {/* Estimated Jamming Source Zone (Orange) */}
+              {showJammingZone && jammingZone && (
+                <Circle
+                  center={[jammingZone.lat, jammingZone.lon]}
+                  radius={jammingZone.radius}
+                  pathOptions={{
+                    color: 'rgba(251, 146, 60, 0.9)',
+                    fillColor: 'rgba(251, 146, 60, 0.3)',
+                    weight: 3,
+                    dashArray: '5, 5',
+                  }}
+                >
+                  <Tooltip direction="center" permanent>
+                    <div className="font-mono text-xs text-orange-600 font-bold text-center">
+                      Estimated Jamming
+                      <br />
+                      Source Zone
+                      <br />
+                      Radius: 150km
+                      <br />
+                      Confidence: 0.87
+                    </div>
+                  </Tooltip>
+                </Circle>
+              )}
+
+              {/* Jamming Impact Circle (Red) */}
               {showJammingCircle && jammingSource && (
                 <Circle
                   center={[jammingSource.lat, jammingSource.lon]}
@@ -910,13 +1387,11 @@ export default function ScenarioDemoPage() {
                     weight: 2,
                   }}
                 >
-                  <Tooltip direction="center" permanent>
+                  <Tooltip direction="top" offset={[0, -200]} permanent>
                     <div className="font-mono text-xs text-red-600 font-bold">
-                      Jamming Source
+                      Jamming Impact Zone
                       <br />
                       Radius: 500km
-                      <br />
-                      Confidence: 0.87
                     </div>
                   </Tooltip>
                 </Circle>
@@ -951,6 +1426,11 @@ export default function ScenarioDemoPage() {
               <span className="text-xs text-gray-300">OUT-OF-BAND</span>
             </div>
           </div>
+
+          {/* Data Reference Timestamp */}
+          <div className="text-center text-xs text-gray-500 font-mono">
+            Reference Data: 30/01/2026 14:50:11 UTC - 14:51:52 UTC
+          </div>
         </div>
 
         {/* Right Side: Timer + Event Cards + Playbooks */}
@@ -967,6 +1447,14 @@ export default function ScenarioDemoPage() {
               </div>
             )}
           </div>
+
+          {/* ISL Link Diagram - moved above boot log */}
+          <ISLLinkDiagram
+            visible={showISLDiagram}
+            showCommandRelay={showCommandRelay}
+            commandFlowActive={commandFlowActive}
+            showDataTransfer={showDataTransfer}
+          />
 
           {/* Boot Log Style Messages */}
           {showBootLog && bootLogs.length > 0 && (
@@ -1046,37 +1534,6 @@ export default function ScenarioDemoPage() {
             </div>
           )}
 
-          {/* Transfer Progress */}
-          {showTransferProgress && (
-            <div className="rounded-xl p-4 bg-gray-900/50 border border-green-500/30 backdrop-blur-sm">
-              <div className="text-lg font-medium text-white mb-3">
-                Mission Transferring...
-              </div>
-
-              {/* Boot Log Style */}
-              <div className="bg-black/60 rounded-lg p-3 font-mono text-sm text-green-400 space-y-1 mb-3 max-h-[180px] overflow-auto">
-                {transferLogs.map((log, i) => (
-                  <div key={i} className="animate-fade-in">
-                    {log}
-                  </div>
-                ))}
-              </div>
-
-              {/* Progress Bar */}
-              <div className="relative h-3 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="absolute inset-y-0 left-0 bg-green-500 transition-all duration-100"
-                  style={{
-                    width: `${transferProgress}%`,
-                  }}
-                />
-              </div>
-              <div className="text-right text-base text-gray-300 mt-2 font-mono">
-                {transferProgress}%
-              </div>
-            </div>
-          )}
-
           {/* Demo Complete Message */}
           {demoCompleted && (
             <div className="rounded-xl p-5 bg-green-900/30 border border-green-500/30 backdrop-blur-sm text-center">
@@ -1084,7 +1541,8 @@ export default function ScenarioDemoPage() {
                 ✓ Demo Complete
               </div>
               <div className="text-base text-gray-300">
-                All satellites switched to out-of-band communication
+                Mission successfully transferred via ISL out-of-band
+                communication
               </div>
             </div>
           )}
