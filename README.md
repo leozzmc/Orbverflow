@@ -4,6 +4,9 @@ Fleet-level cooperative detection + resilience playbooks for satellite constella
 
 > Upgrade satellite defense from **standalone mode** to **cooperative mode** — with **Human-in-the-loop** and **Non-intrusive** integration to existing Mission Control Systems (MCS).
 
+<img width="1442" height="890" alt="image" src="https://github.com/user-attachments/assets/91df374a-c193-473e-a1da-3ef3d8df5519" />
+
+
 ---
 
 ## What this demo shows
